@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0f766e">
+    
+    <title>Duty Manager Night Rounds Audit</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            -webkit-tap-highlight-color: transparent;
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            background-color: #f8fafc;
+        }
+        
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        @media print {
+            body { background-color: white !important; color: black !important; font-size: 11px !important; line-height: 1.4 !important; }
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            .print-border { border: 1px solid #cbd5e1 !important; }
+            .print-page-break { page-break-inside: avoid; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px;}
+            input, textarea { border: none !important; border-bottom: 1px solid #e2e8f0 !important; border-radius: 0 !important; background: transparent !important; }
+            
+            /* High-Clarity Photo Stack for PDF */
+            .photo-grid {
+                display: flex;
+                flex-direction: column;
+                gap: 15px;
+                margin-top: 15px;
+            }
+
+            .photo-preview img { 
+                width: 100% !important; /* Forces large view for PDF clarity */
+                max-height: none !important;
+                object-fit: contain !important;
+                border: 2px solid #000;
+                border-radius: 4px;
+            }
+            main { padding: 0 !important; }
+            .meta-section { margin-bottom: 30px; }
+        }
+
+        .selected-compliant { background-color: #0d9488 !important; color: white !important; border-color: #0d9488 !important; }
+        .selected-non-compliant { background-color: #e11d48 !important; color: white !important; border-color: #e11d48 !important; }
+        .selected-na { background-color: #475569 !important; color: white !important; border-color: #475569 !important; }
+        
+        .photo-preview img {
+            width: 100%;
+            height: auto;
+            object-fit: cover;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+
+        .saving-indicator {
+            display: none;
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased font-sans">
+
+    <div id="saving-indicator" class="saving-indicator no-print">
+        <div class="bg-white/90 backdrop-blur shadow-lg border border-teal-100 px-4 py-2 rounded-full flex items-center gap-2">
+            <i class="fa-solid fa-circle-notch fa-spin text-teal-600"></i>
+            <span class="text-[10px] font-black uppercase text-teal-800">Securing Data...</span>
+        </div>
+    </div>
+
+    <header class="bg-teal-700 text-white p-4 sticky top-0 z-50 shadow-md no-print">
+        <div class="max-w-3xl mx-auto flex justify-between items-center">
+            <h1 class="font-bold text-lg leading-tight tracking-tight">Duty Manager Audit</h1>
+            <div id="progress-text" class="text-xs font-black bg-teal-800 px-3 py-1 rounded-full">0/0</div>
+        </div>
+    </header>
+
+    <div class="hidden print-only mb-8 text-center border-b-4 border-teal-800 pb-6">
+        <h1 class="font-black text-3xl uppercase text-teal-900 mb-1">Night Rounds Audit Report</h1>
+        <p class="text-sm text-slate-500 font-bold uppercase tracking-[0.3em]">Duty Manager Operations Checklist</p>
+    </div>
+
+    <main class="max-w-3xl mx-auto p-4 pb-28">
+        
+        <div class="bg-white p-6 rounded-3xl border border-slate-200 mb-8 shadow-sm print-border meta-section">
+            <div class="grid grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Audit Date</label>
+                    <input type="date" id="audit-date" class="w-full text-sm font-bold bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-700">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Audit Time</label>
+                    <input type="time" id="audit-time" class="w-full text-sm font-bold bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-700">
+                </div>
+                <div class="col-span-2">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Duty Manager</label>
+                    <input type="text" id="dm-name" placeholder="Enter Full Name" class="w-full text-sm font-bold bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-700">
+                </div>
+            </div>
+        </div>
+
+        <div id="checklist-container"></div>
+
+        <div class="bg-white p-8 rounded-3xl border border-slate-200 mt-8 shadow-sm print-border print-page-break">
+            <h3 class="font-black text-base text-teal-900 mb-6 border-b-2 border-slate-100 pb-4 uppercase tracking-wider">Final Shift Handover</h3>
+            
+            <div class="mb-6">
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Summary of Shift & Findings</label>
+                <textarea id="final-summary" rows="5" placeholder="Document any critical incidents, maintenance escalations, or follow-ups..." class="w-full text-sm font-medium bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-700 resize-none leading-relaxed"></textarea>
+            </div>
+
+            <div class="mb-8 no-print">
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Handover Evidence (Attach Multiple)</label>
+                <button onclick="app.triggerPhotoUpload('handover')" class="w-full h-14 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 font-bold hover:bg-teal-50 hover:text-teal-600 hover:border-teal-200 transition-all flex items-center justify-center gap-3">
+                    <i class="fa-solid fa-camera-retro text-xl"></i>
+                    <span>Attach Handover Photo</span>
+                </button>
+                <div id="handover-photos-preview" class="grid grid-cols-2 gap-3 mt-4"></div>
+            </div>
+
+            <div class="hidden print-only mb-8" id="handover-photos-print"></div>
+            
+            <div class="grid grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Handover To</label>
+                    <input type="text" id="handover-name" placeholder="Manager Name" class="w-full text-sm font-bold bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-700">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Handover Time</label>
+                    <input type="time" id="handover-time" class="w-full text-sm font-bold bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-700">
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div class="fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-md border-t border-slate-200 p-5 shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.1)] z-40 no-print flex gap-4">
+        <button id="save-btn" onclick="app.saveProgress()" class="flex-none px-4 h-14 flex items-center justify-center bg-slate-100 text-teal-600 rounded-2xl font-black text-xs border border-teal-200 hover:bg-teal-50 transition-all active:scale-95">
+            <i class="fa-solid fa-cloud-arrow-up text-lg mr-2"></i> SAVE
+        </button>
+        <button id="submit-btn" onclick="app.completeAudit()" class="flex-1 h-14 bg-teal-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-teal-600/40 hover:bg-teal-700 transition-all active:scale-95 flex items-center justify-center gap-3">
+            <i class="fa-solid fa-file-pdf text-xl"></i> DOWNLOAD PDF
+        </button>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'night-rounds-audit';
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db = null;
+        let auth = null;
+
+        if (firebaseConfig) {
+            const firebaseApp = initializeApp(firebaseConfig);
+            auth = getAuth(firebaseApp);
+            db = getFirestore(firebaseApp);
+        }
+
+        const auditData = [
+            { category: "MAIN PORCH", items: [{ text: "Manning Valet & LP Team." }, { text: "Overall Cleanliness." }, { text: "Exit Gate Locked." }] },
+            { category: "LOBBY & RECEPTION", items: [{ text: "Lobby seating area furniture arrangement." }, { text: "Floor/carpet cleaning condition." }, { text: "Reception desk/Back office cleanliness." }, { text: "Luggage Room: Secured and organized. No unattended luggage left in the lobby." }, { text: "Public Restroom cleanliness." }, { text: "Lobby Ambience: Lighting dimmed to night settings, temperature comfortable." }, { text: "Any abnormal smell/noise." }, { text: "Was lobby music switched off at 23.00 hrs." }, { text: "VIP Movements: Review late night or early morning VIP arrivals/departures; ensure arrangements are ready." }, { text: "Check all digital signage for correct signages." }, { text: "Is the hotel EV car fully charged." }, { text: "Is hotel EV car key handed over to DM." }, { text: "Conduct a floor check of the M-floor lobby for standards and for any potential security breaches." }] },
+            { category: "SECURITY & LIFE SAFETY", items: [{ text: "Key Control Audit: Audit the key log to ensure all department keys were properly signed in by the departing evening staff." }, { text: "Security Control Room: Staff alert & CCTV functioning." }, { text: "Fire Panel: No faults or disabled zones." }, { text: "Entrance & Exit: Ensure required doors are locked/secured according to night protocols." }, { text: "Along with the LP team, check the 1st floor for any security breach, including the service & guest staircase." }, { text: "Emergency Exits: Stairwells clear & lit." }, { text: "Perimeter Check: Walk the exterior perimeter. Check exterior lighting, parking security, and landscaping." }] },
+            { category: "PUBLIC AREAS & HOUSEKEEPING", items: [{ text: "Elevators: Clean (mirrors, floors, panels) and functioning smoothly." }, { text: "Ensure the Fitness Centre, Wet Area, and SPA remain under lock and key by verifying all access control points." }] },
+            { category: "POOL AREA", items: [{ text: "Pool lighting is on." }, { text: "Check for overall cleanliness." }, { text: "Pool area perimeter check." }] },
+            { category: "FOOD & BEVERAGE", items: [{ text: "Outlet Security: All outlets locked." }, { text: "Events Lawn: Smoking poles clean." }, { text: "Events Hall: Monitor setup & activities." }, { text: "IRD: Staff alert, kitchen clean." }, { text: "Spring: Cleanliness & staff attentiveness." }] },
+            { category: "GUEST CORRIDORS & FLOORS", items: [{ text: "Lighting: All corridor lights functioning." }, { text: "Noise Levels: Address disturbances immediately." }, { text: "Room Service: Corridors clear of trays." }, { text: "Housekeeping: No carts left in corridors." }] },
+            { category: "BACK OF HOUSE (BOH) & HEART OF HOUSE", items: [{ text: "Samovar: Cleanliness & food quality." }, { text: "Locker rooms: Clean, well-lit, secure, and no unauthorised stay-overs." }, { text: "Receiving Area: Gates locked & clean." }, { text: "Garbage Area: Clean and secure to prevent pest issues." }] },
+            { category: "CAR PARKING & DRIVERS' RESTROOM", items: [{ text: "Car parking area cleanliness." }, { text: "Drivers' restroom cleanliness." }] }
+        ];
+
+        window.app = {
+            flatItems: [],
+            totalItems: 0,
+            user: null,
+            auditId: "current_draft",
+            isSaving: false,
+            handoverPhotos: [],
+            
+            async init() {
+                const dateEl = document.getElementById('audit-date');
+                const timeEl = document.getElementById('audit-time');
+                if (dateEl) dateEl.valueAsDate = new Date();
+                if (timeEl) {
+                    const now = new Date();
+                    timeEl.value = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+                }
+
+                let gIdx = 0;
+                auditData.forEach((cat, cIdx) => {
+                    cat.items.forEach((item, iIdx) => {
+                        this.flatItems.push({ 
+                            ...item, gIdx, cIdx, iIdx, 
+                            status: null, remarks: "", photos: [] // Array supports multiple photos
+                        });
+                        gIdx++;
+                    });
+                });
+                this.totalItems = this.flatItems.length;
+
+                if (auth) {
+                    try {
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken).catch(() => signInAnonymously(auth));
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (err) {
+                        console.error("Auth initialization failed:", err);
+                    }
+                    onAuthStateChanged(auth, async (u) => {
+                        this.user = u;
+                        if (u) await this.loadProgress();
+                    });
+                    setInterval(() => this.saveProgress(true), 60000);
+                }
+
+                this.render();
+                this.updateProgress();
+            },
+
+            escapeHTML(str) {
+                if (!str) return "";
+                const div = document.createElement('div');
+                div.textContent = str;
+                return div.innerHTML;
+            },
+
+            render() {
+                const container = document.getElementById('checklist-container');
+                if (!container) return;
+                
+                let html = '';
+                let gIdx = 0;
+
+                auditData.forEach((category) => {
+                    html += `
+                        <div class="mb-12">
+                            <h2 class="sticky top-[78px] z-30 bg-[#f8fafc]/90 backdrop-blur-md py-4 mb-4 font-black text-xs text-teal-800 uppercase tracking-[0.2em] border-b-2 border-teal-600/30 no-print">
+                                ${this.escapeHTML(category.category)}
+                            </h2>
+                            <h2 class="hidden print-only font-black text-xl text-teal-800 border-b-4 border-teal-800 mb-6 pb-2 mt-10">
+                                ${this.escapeHTML(category.category)}
+                            </h2>
+                    `;
+
+                    category.items.forEach((item) => {
+                        const state = this.flatItems[gIdx];
+                        const escapedText = this.escapeHTML(item.text);
+                        const escapedRemarks = this.escapeHTML(state.remarks);
+
+                        html += `
+                            <div class="hidden print-only mb-8 pb-8 print-page-break">
+                                <div class="flex justify-between items-start mb-3">
+                                    <div class="flex-1 pr-8">
+                                        <span class="font-black mr-3 text-slate-300 text-lg">${gIdx + 1}.</span>
+                                        <span class="font-bold text-slate-900 text-[14px]">${escapedText}</span>
+                                    </div>
+                                    <div class="w-36 text-right font-black text-[12px] uppercase tracking-tighter text-teal-900">
+                                        Result: ${state.status ? state.status.replace('-', ' ') : 'NOT AUDITED'}
+                                    </div>
+                                </div>
+                                ${state.remarks ? `<div class="text-[11px] text-slate-600 italic ml-10 mb-4 p-4 bg-slate-50 border-l-4 border-slate-300 rounded-r-lg">Findings: ${escapedRemarks}</div>` : ''}
+                                ${state.photos.length > 0 ? `<div class="photo-grid ml-10">${state.photos.map(p => `<div class="photo-preview"><img src="${p}"></div>`).join('')}</div>` : ''}
+                            </div>
+
+                            <div class="bg-white p-6 rounded-[2rem] border border-slate-200 mb-6 shadow-sm no-print" data-idx="${gIdx}">
+                                <div class="flex justify-between items-start mb-6">
+                                    <span class="text-[10px] font-black text-slate-200 w-6 mt-1">${gIdx + 1}.</span>
+                                    <p class="text-[15px] font-bold text-slate-800 flex-1 ml-2 leading-tight">${escapedText}</p>
+                                </div>
+                                
+                                <div class="space-y-6">
+                                    <div class="flex gap-2.5 w-full">
+                                        <button onclick="app.updateItemStatus(${gIdx}, 'compliant')" data-status="compliant" class="status-btn flex-1 py-4 border-2 border-slate-50 rounded-2xl text-[11px] font-black tracking-[0.1em] transition-all ${state.status === 'compliant' ? 'selected-compliant' : 'bg-slate-50 text-slate-400'}">YES</button>
+                                        <button onclick="app.updateItemStatus(${gIdx}, 'non-compliant')" data-status="non-compliant" class="status-btn flex-1 py-4 border-2 border-slate-50 rounded-2xl text-[11px] font-black tracking-[0.1em] transition-all ${state.status === 'non-compliant' ? 'selected-non-compliant' : 'bg-slate-50 text-slate-400'}">NO</button>
+                                        <button onclick="app.updateItemStatus(${gIdx}, 'na')" data-status="na" class="status-btn flex-1 py-4 border-2 border-slate-50 rounded-2xl text-[11px] font-black tracking-[0.1em] transition-all ${state.status === 'na' ? 'selected-na' : 'bg-slate-50 text-slate-400'}">N/A</button>
+                                    </div>
+
+                                    <div class="grid grid-cols-12 gap-3 items-start">
+                                        <div class="col-span-9">
+                                            <textarea 
+                                                id="remarks-${gIdx}"
+                                                oninput="app.updateRemarks(${gIdx}, this.value)"
+                                                placeholder="Observations..." 
+                                                class="w-full text-sm font-semibold bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 focus:outline-none focus:border-teal-500 focus:bg-white text-slate-600 resize-none min-h-[56px]"
+                                                rows="1"
+                                            >${escapedRemarks}</textarea>
+                                        </div>
+                                        <div class="col-span-3">
+                                            <button onclick="app.triggerPhotoUpload(${gIdx})" class="evidence-btn w-full h-[56px] flex items-center justify-center bg-slate-50 text-slate-400 rounded-2xl border-2 border-slate-50 transition-all hover:bg-teal-50 hover:text-teal-600 hover:border-teal-200">
+                                                <i class="fa-solid fa-camera text-2xl"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div id="preview-container-${gIdx}" class="grid grid-cols-2 gap-3 mt-4 ${state.photos.length > 0 ? '' : 'hidden'}">
+                                        ${state.photos.map((p, pIdx) => `
+                                            <div class="photo-preview border-2 border-slate-100 rounded-3xl overflow-hidden relative group">
+                                                <img src="${p}">
+                                                <button onclick="app.removePhoto(${gIdx}, ${pIdx})" class="absolute top-2 right-2 bg-rose-500 text-white w-8 h-8 rounded-xl flex items-center justify-center shadow-lg"><i class="fa-solid fa-trash-can text-sm"></i></button>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        gIdx++;
+                    });
+                    html += `</div>`;
+                });
+
+                container.innerHTML = html;
+                this.renderHandoverPhotos();
+            },
+
+            renderHandoverPhotos() {
+                const preview = document.getElementById('handover-photos-preview');
+                const print = document.getElementById('handover-photos-print');
+                
+                const html = this.handoverPhotos.map((p, pIdx) => `
+                    <div class="photo-preview border-2 border-slate-100 rounded-3xl overflow-hidden relative group">
+                        <img src="${p}">
+                        <button onclick="app.removeHandoverPhoto(${pIdx})" class="absolute top-2 right-2 bg-rose-500 text-white w-8 h-8 rounded-xl flex items-center justify-center shadow-lg no-print"><i class="fa-solid fa-trash-can text-sm"></i></button>
+                    </div>
+                `).join('');
+                
+                if (preview) preview.innerHTML = html;
+                if (print) print.innerHTML = `<div class="photo-grid">${html}</div>`;
+            },
+
+            async saveProgress(isAuto = false) {
+                if (!this.user || !db || this.isSaving) return;
+                this.isSaving = true;
+                const ind = document.getElementById('saving-indicator');
+                if (ind) ind.style.display = 'block';
+
+                try {
+                    const auditRef = doc(db, 'artifacts', appId, 'users', this.user.uid, 'audits', this.auditId);
+                    await setDoc(auditRef, {
+                        date: document.getElementById('audit-date')?.value || "",
+                        time: document.getElementById('audit-time')?.value || "",
+                        dmName: document.getElementById('dm-name')?.value || "",
+                        summary: document.getElementById('final-summary')?.value || "",
+                        handoverName: document.getElementById('handover-name')?.value || "",
+                        handoverTime: document.getElementById('handover-time')?.value || "",
+                        handoverPhotos: this.handoverPhotos,
+                        updatedAt: new Date().toISOString()
+                    });
+
+                    const resCol = collection(db, 'artifacts', appId, 'users', this.user.uid, 'audits', this.auditId, 'responses');
+                    for (const item of this.flatItems) {
+                        await setDoc(doc(resCol, String(item.gIdx)), {
+                            status: item.status, 
+                            remarks: item.remarks, 
+                            photos: item.photos, 
+                            gIdx: item.gIdx
+                        });
+                    }
+                } catch (e) { 
+                    console.error("Secure save failed:", e); 
+                } finally {
+                    this.isSaving = false;
+                    if (ind) setTimeout(() => ind.style.display = 'none', 1000);
+                }
+            },
+
+            async loadProgress() {
+                if (!this.user || !db) return;
+                try {
+                    const snap = await getDoc(doc(db, 'artifacts', appId, 'users', this.user.uid, 'audits', this.auditId));
+                    if (snap.exists()) {
+                        const d = snap.data();
+                        const dateEl = document.getElementById('audit-date');
+                        const timeEl = document.getElementById('audit-time');
+                        const dmEl = document.getElementById('dm-name');
+                        const sumEl = document.getElementById('final-summary');
+                        const hNameEl = document.getElementById('handover-name');
+                        const hTimeEl = document.getElementById('handover-time');
+
+                        if (dateEl) dateEl.value = d.date || "";
+                        if (timeEl) timeEl.value = d.time || "";
+                        if (dmEl) dmEl.value = d.dmName || "";
+                        if (sumEl) sumEl.value = d.summary || "";
+                        if (hNameEl) hNameEl.value = d.handoverName || "";
+                        if (hTimeEl) hTimeEl.value = d.handoverTime || "";
+                        this.handoverPhotos = d.handoverPhotos || [];
+
+                        const rSnap = await getDocs(collection(db, 'artifacts', appId, 'users', this.user.uid, 'audits', this.auditId, 'responses'));
+                        rSnap.forEach(doc => {
+                            const r = doc.data();
+                            const item = this.flatItems[r.gIdx];
+                            if (item) {
+                                item.status = r.status; 
+                                item.remarks = r.remarks || "";
+                                item.photos = r.photos || [];
+                            }
+                        });
+                        this.render(); 
+                        this.updateProgress();
+                    }
+                } catch (e) { 
+                    console.error("Secure load failed:", e); 
+                }
+            },
+
+            updateItemStatus(gIdx, status) {
+                if (typeof gIdx !== 'number' || gIdx >= this.flatItems.length) return;
+                this.flatItems[gIdx].status = status;
+                const card = document.querySelector(`[data-idx="${gIdx}"]`);
+                if (card) {
+                    card.querySelectorAll('.status-btn').forEach(b => b.classList.remove('selected-compliant', 'selected-non-compliant', 'selected-na'));
+                    const active = card.querySelector(`[data-status="${status}"]`);
+                    if (active) active.classList.add(`selected-${status}`);
+                }
+                this.updateProgress();
+            },
+
+            updateRemarks(gIdx, val) { 
+                if (typeof gIdx === 'number' && gIdx < this.flatItems.length) {
+                    this.flatItems[gIdx].remarks = val; 
+                }
+            },
+
+            updateProgress() {
+                const comp = this.flatItems.filter(i => i.status !== null).length;
+                const progressText = document.getElementById('progress-text');
+                
+                if (progressText) {
+                    progressText.innerText = `${comp}/${this.totalItems}`;
+                }
+            },
+
+            triggerPhotoUpload(target) {
+                const input = document.createElement('input');
+                input.type = 'file'; 
+                input.accept = 'image/jpeg, image/png'; 
+                input.capture = 'environment';
+                
+                input.onchange = e => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        if (!file.type.startsWith('image/')) return;
+                        
+                        const reader = new FileReader();
+                        reader.onload = ev => {
+                            const img = new Image();
+                            img.onload = () => {
+                                const canvas = document.createElement('canvas');
+                                const ctx = canvas.getContext('2d');
+                                
+                                // Enhanced 2000px width for high clarity in PDF
+                                const targetW = 2000;
+                                const targetH = (img.height / img.width) * targetW;
+                                canvas.width = targetW; canvas.height = targetH;
+                                ctx.drawImage(img, 0, 0, targetW, targetH);
+                                
+                                const ts = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).toUpperCase();
+                                ctx.font = `bold ${Math.floor(targetW / 28)}px sans-serif`;
+                                ctx.textAlign = "right"; ctx.fillStyle = "white";
+                                ctx.shadowColor = "black"; ctx.shadowBlur = 15;
+                                ctx.fillText(ts, targetW - 50, targetH - 50);
+
+                                // Adjusted quality compression to 0.85 for keeping multi-photo PDF within 10MB
+                                const data = canvas.toDataURL('image/jpeg', 0.85);
+                                if (!data.startsWith('data:image/jpeg;base64,')) return;
+                                
+                                // Pushes to the array, enabling limitless multiple uploads
+                                if (target === 'handover') {
+                                    this.handoverPhotos.push(data);
+                                    this.renderHandoverPhotos();
+                                } else if (typeof target === 'number' && target < this.flatItems.length) {
+                                    this.flatItems[target].photos.push(data);
+                                    this.render(); 
+                                }
+                            };
+                            img.src = ev.target.result;
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                };
+                input.click();
+            },
+
+            removePhoto(idx, photoIdx) {
+                if (typeof idx === 'number' && this.flatItems[idx]) {
+                    this.flatItems[idx].photos.splice(photoIdx, 1);
+                    this.render();
+                }
+            },
+
+            removeHandoverPhoto(pIdx) {
+                this.handoverPhotos.splice(pIdx, 1);
+                this.renderHandoverPhotos();
+            },
+
+            completeAudit() { 
+                if (db) this.saveProgress(); 
+                window.print(); 
+            }
+        };
+
+        window.onload = () => app.init();
+    </script>
+</body>
+</html>
