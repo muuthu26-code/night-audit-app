@@ -86,16 +86,16 @@
         .status-toast {
             display: none;
             position: fixed;
-            top: calc(1rem + var(--sat));
+            top: calc(1.5rem + var(--sat));
             left: 50%;
             transform: translateX(-50%);
-            z-index: 100;
-            animation: slideDown 0.3s ease-out;
+            z-index: 1000;
+            animation: slideDownFade 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
-        @keyframes slideDown {
-            from { top: -50px; opacity: 0; }
-            to { top: calc(1rem + var(--sat)); opacity: 1; }
+        @keyframes slideDownFade {
+            from { transform: translate(-50%, -20px); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
         }
 
         .floating-action-area {
@@ -103,14 +103,55 @@
         }
 
         textarea { transition: all 0.2s ease; }
+
+        /* Save Button Interaction */
+        #save-btn { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        #save-btn:active { transform: scale(0.92); }
+        .loading-pulse { animation: pulse-teal 1.5s infinite; }
+        @keyframes pulse-teal {
+            0% { box-shadow: 0 0 0 0 rgba(13, 148, 136, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(13, 148, 136, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(13, 148, 136, 0); }
+        }
+
+        /* Modal Backdrop */
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
     </style>
 </head>
 <body class="text-slate-800 antialiased font-sans">
 
     <!-- Save Confirmation Toast -->
     <div id="status-toast" class="status-toast no-print">
-        <div id="toast-content" class="bg-white shadow-2xl border border-slate-100 px-6 py-3 rounded-full flex items-center gap-3">
+        <div id="toast-content" class="bg-white/95 backdrop-blur shadow-2xl border border-slate-100 px-6 py-4 rounded-3xl flex items-center gap-3">
             <!-- Content dynamic via JS -->
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="modal-backdrop no-print">
+        <div class="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl">
+            <div class="w-16 h-16 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+                <i class="fa-solid fa-triangle-exclamation text-2xl"></i>
+            </div>
+            <h3 class="text-xl font-black text-center text-slate-900 mb-2">New Audit?</h3>
+            <p class="text-slate-500 text-center font-medium mb-8">This will start a fresh form. Your current draft will be archived.</p>
+            <div class="flex gap-3">
+                <button onclick="app.closeModal()" class="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-sm">CANCEL</button>
+                <button onclick="app.confirmNewAudit()" class="flex-1 py-4 bg-rose-600 text-white rounded-2xl font-black text-sm shadow-lg shadow-rose-600/30">YES, START NEW</button>
+            </div>
         </div>
     </div>
 
@@ -119,7 +160,12 @@
         <div class="max-w-3xl mx-auto flex justify-between items-center">
             <div>
                 <h1 class="font-bold text-lg leading-tight tracking-tight">Duty Manager Audit</h1>
+                <p id="audit-id-display" class="text-[9px] font-black opacity-50 uppercase tracking-widest mt-0.5">Session: Loading...</p>
             </div>
+            <button onclick="app.promptNewAudit()" class="bg-teal-800/50 hover:bg-teal-600 border border-teal-500/30 px-3 py-2 rounded-xl flex items-center gap-2 transition-all active:scale-95">
+                <i class="fa-solid fa-plus-circle"></i>
+                <span class="text-[10px] font-black uppercase tracking-wider">New</span>
+            </button>
         </div>
     </header>
 
@@ -198,8 +244,11 @@
         <button onclick="window.print()" class="flex-none px-4 h-14 flex items-center justify-center bg-slate-100 text-slate-600 rounded-2xl font-black text-xs border border-slate-200 hover:bg-slate-200 transition-all active:scale-95">
             <i class="fa-solid fa-file-pdf text-lg"></i>
         </button>
-        <button id="save-btn" onclick="app.saveProgress()" class="flex-none px-4 h-14 flex items-center justify-center bg-slate-100 text-teal-600 rounded-2xl font-black text-xs border border-teal-200 hover:bg-teal-50 transition-all active:scale-95">
-            <i class="fa-solid fa-cloud-arrow-up text-lg mr-2"></i> SAVE
+        <button id="save-btn" onclick="app.saveProgress()" class="flex-none px-6 h-14 flex items-center justify-center bg-slate-100 text-teal-600 rounded-2xl font-black text-xs border border-teal-200 hover:bg-teal-50 transition-all active:scale-95">
+            <span id="save-btn-content" class="flex items-center gap-2">
+                <i class="fa-solid fa-cloud-arrow-up text-lg"></i> 
+                <span>SAVE</span>
+            </span>
         </button>
         <button id="submit-btn" onclick="app.completeAudit()" class="flex-1 h-14 bg-teal-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-teal-600/40 hover:bg-teal-700 transition-all active:scale-95 flex items-center justify-center gap-3">
             <i class="fa-solid fa-circle-check text-xl"></i> COMPLETE
@@ -210,7 +259,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'night-rounds-audit';
@@ -292,11 +341,14 @@
             flatItems: [],
             totalItems: 0,
             user: null,
-            auditId: "current_draft",
+            auditId: localStorage.getItem('night_audit_session_id') || `audit_${Date.now()}`,
             isSaving: false,
             handoverPhotos: [],
             
             async init() {
+                localStorage.setItem('night_audit_session_id', this.auditId);
+                document.getElementById('audit-id-display').innerText = `Session: ${this.auditId}`;
+                
                 const dateEl = document.getElementById('audit-date');
                 const timeEl = document.getElementById('audit-time');
                 if (dateEl) dateEl.valueAsDate = new Date();
@@ -305,17 +357,7 @@
                     timeEl.value = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
                 }
 
-                let gIdx = 0;
-                auditData.forEach((cat, cIdx) => {
-                    cat.items.forEach((item, iIdx) => {
-                        this.flatItems.push({ 
-                            ...item, gIdx, cIdx, iIdx, 
-                            status: null, remarks: "", photos: []
-                        });
-                        gIdx++;
-                    });
-                });
-                this.totalItems = this.flatItems.length;
+                this.initializeItems();
 
                 if (auth) {
                     try {
@@ -331,11 +373,58 @@
                         this.user = u;
                         if (u) await this.loadProgress();
                     });
-                    setInterval(() => this.saveProgress(true), 60000 * 5); // Autosave every 5 mins
+                    setInterval(() => this.saveProgress(true), 60000 * 3); // Autosave every 3 mins
                 }
 
                 this.render();
                 this.updateProgress();
+            },
+
+            initializeItems() {
+                this.flatItems = [];
+                let gIdx = 0;
+                auditData.forEach((cat, cIdx) => {
+                    cat.items.forEach((item, iIdx) => {
+                        this.flatItems.push({ 
+                            ...item, gIdx, cIdx, iIdx, 
+                            status: null, remarks: "", photos: []
+                        });
+                        gIdx++;
+                    });
+                });
+                this.totalItems = this.flatItems.length;
+            },
+
+            promptNewAudit() {
+                document.getElementById('confirm-modal').style.display = 'flex';
+            },
+
+            closeModal() {
+                document.getElementById('confirm-modal').style.display = 'none';
+            },
+
+            confirmNewAudit() {
+                this.closeModal();
+                this.auditId = `audit_${Date.now()}`;
+                localStorage.setItem('night_audit_session_id', this.auditId);
+                document.getElementById('audit-id-display').innerText = `Session: ${this.auditId}`;
+                
+                // Reset local state
+                this.initializeItems();
+                this.handoverPhotos = [];
+                
+                // Reset DOM elements
+                const fields = ['dm-name', 'final-summary', 'handover-name', 'handover-time'];
+                fields.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = "";
+                });
+                const dateEl = document.getElementById('audit-date');
+                if (dateEl) dateEl.valueAsDate = new Date();
+                
+                this.render();
+                this.updateProgress();
+                this.showToast('success', 'New audit session started');
             },
 
             showToast(type, message) {
@@ -343,16 +432,22 @@
                 const content = document.getElementById('toast-content');
                 
                 if (type === 'saving') {
-                    content.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-teal-600"></i><span class="text-[11px] font-black uppercase text-teal-800 tracking-wider">Securing Data...</span>`;
+                    content.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-teal-600 text-xl"></i><div class="flex flex-col"><span class="text-[12px] font-black uppercase text-teal-800 tracking-wider">Cloud Sync</span><span class="text-[10px] text-slate-500 font-bold">Uploading audit state...</span></div>`;
                 } else if (type === 'success') {
-                    content.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500"></i><span class="text-[11px] font-black uppercase text-emerald-800 tracking-wider">Progress Saved Successfully</span>`;
+                    content.innerHTML = `<i class="fa-solid fa-check-circle text-emerald-500 text-2xl"></i><div class="flex flex-col"><span class="text-[12px] font-black uppercase text-emerald-900 tracking-wider">Sync Complete</span><span class="text-[10px] text-emerald-600 font-bold">${message || 'Progress secured to cloud'}</span></div>`;
                 } else if (type === 'error') {
-                    content.innerHTML = `<i class="fa-solid fa-circle-exclamation text-rose-500"></i><span class="text-[11px] font-black uppercase text-rose-800 tracking-wider">Save Failed - Offline?</span>`;
+                    content.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-rose-500 text-2xl"></i><div class="flex flex-col"><span class="text-[12px] font-black uppercase text-rose-900 tracking-wider">Sync Error</span><span class="text-[10px] text-rose-600 font-bold">Check connection and retry</span></div>`;
                 }
 
                 toast.style.display = 'block';
                 if (type !== 'saving') {
-                    setTimeout(() => { toast.style.display = 'none'; }, 3000);
+                    setTimeout(() => { 
+                        toast.style.opacity = '0';
+                        setTimeout(() => {
+                            toast.style.display = 'none';
+                            toast.style.opacity = '1';
+                        }, 400);
+                    }, 2500);
                 }
             },
 
@@ -360,8 +455,14 @@
                 if (!this.user || !db || this.isSaving) return;
                 this.isSaving = true;
                 
-                // Don't show toast for background auto-saves to avoid distracting auditor
-                if (!isAuto) this.showToast('saving');
+                const btn = document.getElementById('save-btn');
+                const btnContent = document.getElementById('save-btn-content');
+                
+                if (!isAuto) {
+                    this.showToast('saving');
+                    btn.classList.add('loading-pulse', 'opacity-70');
+                    btnContent.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-lg"></i><span>SAVING</span>`;
+                }
 
                 try {
                     const auditRef = doc(db, 'artifacts', appId, 'users', this.user.uid, 'audits', this.auditId);
@@ -377,25 +478,37 @@
                     });
 
                     const resCol = collection(db, 'artifacts', appId, 'users', this.user.uid, 'audits', this.auditId, 'responses');
-                    // Save individual responses
+                    // We save each response in a batch logic or sequential to avoid missing data
                     for (const item of this.flatItems) {
-                        await setDoc(doc(resCol, String(item.gIdx)), {
-                            status: item.status, 
-                            remarks: item.remarks, 
-                            photos: item.photos, 
-                            gIdx: item.gIdx
-                        });
+                        if (item.status !== null || item.remarks || item.photos.length > 0) {
+                            await setDoc(doc(resCol, String(item.gIdx)), {
+                                status: item.status, 
+                                remarks: item.remarks, 
+                                photos: item.photos, 
+                                gIdx: item.gIdx
+                            });
+                        }
                     }
 
-                    if (!isAuto) this.showToast('success');
+                    if (!isAuto) {
+                        this.showToast('success');
+                        btnContent.innerHTML = `<i class="fa-solid fa-cloud-check text-emerald-600 text-lg"></i><span class="text-emerald-700">SAVED</span>`;
+                        setTimeout(() => {
+                            btnContent.innerHTML = `<i class="fa-solid fa-cloud-arrow-up text-lg"></i><span>SAVE</span>`;
+                        }, 2000);
+                    }
                 } catch (e) { 
                     console.error("Save failed:", e);
-                    if (!isAuto) this.showToast('error');
+                    if (!isAuto) {
+                        this.showToast('error');
+                        btnContent.innerHTML = `<i class="fa-solid fa-cloud-arrow-up text-lg"></i><span>SAVE</span>`;
+                    }
                 } finally {
                     this.isSaving = false;
+                    btn.classList.remove('loading-pulse', 'opacity-70');
                     if (isAuto) {
                          const toast = document.getElementById('status-toast');
-                         if (toast.style.display === 'block' && document.getElementById('toast-content').innerText.includes('Securing')) {
+                         if (toast.style.display === 'block' && document.getElementById('toast-content').innerText.includes('Syncing')) {
                              toast.style.display = 'none';
                          }
                     }
@@ -408,19 +521,14 @@
                     const snap = await getDoc(doc(db, 'artifacts', appId, 'users', this.user.uid, 'audits', this.auditId));
                     if (snap.exists()) {
                         const d = snap.data();
-                        const dateEl = document.getElementById('audit-date');
-                        const timeEl = document.getElementById('audit-time');
-                        const dmEl = document.getElementById('dm-name');
-                        const sumEl = document.getElementById('final-summary');
-                        const hNameEl = document.getElementById('handover-name');
-                        const hTimeEl = document.getElementById('handover-time');
-
-                        if (dateEl) dateEl.value = d.date || "";
-                        if (timeEl) timeEl.value = d.time || "";
-                        if (dmEl) dmEl.value = d.dmName || "";
-                        if (sumEl) sumEl.value = d.summary || "";
-                        if (hNameEl) hNameEl.value = d.handoverName || "";
-                        if (hTimeEl) hTimeEl.value = d.handoverTime || "";
+                        const fields = {
+                            'audit-date': d.date, 'audit-time': d.time, 'dm-name': d.dmName,
+                            'final-summary': d.summary, 'handover-name': d.handoverName, 'handover-time': d.handoverTime
+                        };
+                        Object.entries(fields).forEach(([id, val]) => {
+                            const el = document.getElementById(id);
+                            if (el) el.value = val || "";
+                        });
                         this.handoverPhotos = d.handoverPhotos || [];
 
                         const rSnap = await getDocs(collection(db, 'artifacts', appId, 'users', this.user.uid, 'audits', this.auditId, 'responses'));
@@ -477,25 +585,25 @@
                     const file = e.target.files[0];
                     if (file) {
                         if (!file.type.startsWith('image/')) return;
-                        
                         const reader = new FileReader();
                         reader.onload = ev => {
                             const img = new Image();
                             img.onload = () => {
                                 const canvas = document.createElement('canvas');
                                 const ctx = canvas.getContext('2d');
-                                const targetW = 1440;
+                                // Balanced sizing for cloud doc limits
+                                const targetW = 1024;
                                 const targetH = (img.height / img.width) * targetW;
                                 canvas.width = targetW; canvas.height = targetH;
                                 ctx.drawImage(img, 0, 0, targetW, targetH);
                                 
                                 const ts = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).toUpperCase();
-                                ctx.font = `bold ${Math.floor(targetW / 28)}px sans-serif`;
-                                ctx.textAlign = "right"; ctx.fillStyle = "white";
-                                ctx.shadowColor = "black"; ctx.shadowBlur = 15;
-                                ctx.fillText(ts, targetW - 50, targetH - 50);
+                                ctx.font = `bold ${Math.floor(targetW / 24)}px sans-serif`;
+                                ctx.textAlign = "right"; ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+                                ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowBlur = 10;
+                                ctx.fillText(ts, targetW - 40, targetH - 40);
 
-                                const data = canvas.toDataURL('image/jpeg', 0.7);
+                                const data = canvas.toDataURL('image/jpeg', 0.6); // Slightly higher compression for faster cloud sync
                                 if (!data.startsWith('data:image/jpeg;base64,')) return;
                                 
                                 if (target === 'handover') {
