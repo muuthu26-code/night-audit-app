@@ -106,8 +106,8 @@
 
         /* Save Button Interaction */
         #save-btn { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
-        #save-btn:active { transform: scale(0.92); }
-        .loading-pulse { animation: pulse-teal 1.5s infinite; }
+        #save-btn:active:not(:disabled) { transform: scale(0.92); }
+        .loading-pulse { animation: pulse-teal 1.5s infinite; pointer-events: none; }
         @keyframes pulse-teal {
             0% { box-shadow: 0 0 0 0 rgba(13, 148, 136, 0.4); }
             70% { box-shadow: 0 0 0 10px rgba(13, 148, 136, 0); }
@@ -147,7 +147,7 @@
                 <i class="fa-solid fa-triangle-exclamation text-2xl"></i>
             </div>
             <h3 class="text-xl font-black text-center text-slate-900 mb-2">New Audit?</h3>
-            <p class="text-slate-500 text-center font-medium mb-8">This will start a fresh form. Your current draft will be archived.</p>
+            <p class="text-slate-500 text-center font-medium mb-8">This will start a fresh form. Your current draft will be saved locally.</p>
             <div class="flex gap-3">
                 <button onclick="app.closeModal()" class="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-sm">CANCEL</button>
                 <button onclick="app.confirmNewAudit()" class="flex-1 py-4 bg-rose-600 text-white rounded-2xl font-black text-sm shadow-lg shadow-rose-600/30">YES, START NEW</button>
@@ -244,9 +244,9 @@
         <button onclick="window.print()" class="flex-none px-4 h-14 flex items-center justify-center bg-slate-100 text-slate-600 rounded-2xl font-black text-xs border border-slate-200 hover:bg-slate-200 transition-all active:scale-95">
             <i class="fa-solid fa-file-pdf text-lg"></i>
         </button>
-        <button id="save-btn" onclick="app.saveProgress()" class="flex-none px-6 h-14 flex items-center justify-center bg-slate-100 text-teal-600 rounded-2xl font-black text-xs border border-teal-200 hover:bg-teal-50 transition-all active:scale-95">
+        <button id="save-btn" onclick="app.saveProgress()" class="flex-none px-6 h-14 flex items-center justify-center bg-slate-100 text-teal-600 rounded-2xl font-black text-xs border border-teal-200 hover:bg-teal-50 transition-all">
             <span id="save-btn-content" class="flex items-center gap-2">
-                <i class="fa-solid fa-cloud-arrow-up text-lg"></i> 
+                <i class="fa-solid fa-floppy-disk text-lg"></i> 
                 <span>SAVE</span>
             </span>
         </button>
@@ -255,25 +255,7 @@
         </button>
     </div>
 
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'night-rounds-audit';
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        let db = null;
-        let auth = null;
-
-        if (firebaseConfig) {
-            const firebaseApp = initializeApp(firebaseConfig);
-            auth = getAuth(firebaseApp);
-            db = getFirestore(firebaseApp);
-        }
-
+    <script>
         const auditData = [
             { category: "MAIN PORCH", items: [{ text: "Manning Valet & LP Team." }, { text: "Overall Cleanliness." }, { text: "Exit Gate Locked." }] },
             { 
@@ -340,12 +322,11 @@
         window.app = {
             flatItems: [],
             totalItems: 0,
-            user: null,
             auditId: localStorage.getItem('night_audit_session_id') || `audit_${Date.now()}`,
             isSaving: false,
             handoverPhotos: [],
             
-            async init() {
+            init() {
                 localStorage.setItem('night_audit_session_id', this.auditId);
                 document.getElementById('audit-id-display').innerText = `Session: ${this.auditId}`;
                 
@@ -358,26 +339,15 @@
                 }
 
                 this.initializeItems();
-
-                if (auth) {
-                    try {
-                        if (initialAuthToken) {
-                            await signInWithCustomToken(auth, initialAuthToken).catch(() => signInAnonymously(auth));
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch (err) {
-                        console.error("Auth initialization failed:", err);
-                    }
-                    onAuthStateChanged(auth, async (u) => {
-                        this.user = u;
-                        if (u) await this.loadProgress();
-                    });
-                    setInterval(() => this.saveProgress(true), 60000 * 3); // Autosave every 3 mins
-                }
+                
+                // Load saved progress from Local Storage immediately
+                this.loadProgress();
 
                 this.render();
                 this.updateProgress();
+
+                // Auto-save to Local Storage every 2 minutes
+                setInterval(() => this.saveProgress(true), 120000); 
             },
 
             initializeItems() {
@@ -431,42 +401,38 @@
                 const toast = document.getElementById('status-toast');
                 const content = document.getElementById('toast-content');
                 
-                if (type === 'saving') {
-                    content.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-teal-600 text-xl"></i><div class="flex flex-col"><span class="text-[12px] font-black uppercase text-teal-800 tracking-wider">Cloud Sync</span><span class="text-[10px] text-slate-500 font-bold">Uploading audit state...</span></div>`;
-                } else if (type === 'success') {
-                    content.innerHTML = `<i class="fa-solid fa-check-circle text-emerald-500 text-2xl"></i><div class="flex flex-col"><span class="text-[12px] font-black uppercase text-emerald-900 tracking-wider">Sync Complete</span><span class="text-[10px] text-emerald-600 font-bold">${message || 'Progress secured to cloud'}</span></div>`;
+                if (type === 'success') {
+                    content.innerHTML = `<i class="fa-solid fa-check-circle text-emerald-500 text-2xl"></i><div class="flex flex-col"><span class="text-[12px] font-black uppercase text-emerald-900 tracking-wider">Save Complete</span><span class="text-[10px] text-emerald-600 font-bold">${message || 'Progress saved to device'}</span></div>`;
                 } else if (type === 'error') {
-                    content.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-rose-500 text-2xl"></i><div class="flex flex-col"><span class="text-[12px] font-black uppercase text-rose-900 tracking-wider">Sync Error</span><span class="text-[10px] text-rose-600 font-bold">Check connection and retry</span></div>`;
+                    content.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-rose-500 text-2xl"></i><div class="flex flex-col"><span class="text-[12px] font-black uppercase text-rose-900 tracking-wider">Storage Error</span><span class="text-[10px] text-rose-600 font-bold">Device storage may be full</span></div>`;
                 }
 
                 toast.style.display = 'block';
-                if (type !== 'saving') {
-                    setTimeout(() => { 
-                        toast.style.opacity = '0';
-                        setTimeout(() => {
-                            toast.style.display = 'none';
-                            toast.style.opacity = '1';
-                        }, 400);
-                    }, 2500);
-                }
+                setTimeout(() => { 
+                    toast.style.opacity = '0';
+                    setTimeout(() => {
+                        toast.style.display = 'none';
+                        toast.style.opacity = '1';
+                    }, 400);
+                }, 2500);
             },
 
-            async saveProgress(isAuto = false) {
-                if (!this.user || !db || this.isSaving) return;
+            saveProgress(isAuto = false) {
+                if (this.isSaving) return;
                 this.isSaving = true;
                 
                 const btn = document.getElementById('save-btn');
                 const btnContent = document.getElementById('save-btn-content');
                 
                 if (!isAuto) {
-                    this.showToast('saving');
-                    btn.classList.add('loading-pulse', 'opacity-70');
-                    btnContent.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-lg"></i><span>SAVING</span>`;
+                    btn.disabled = true;
+                    btn.classList.add('loading-pulse');
+                    btnContent.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-lg"></i><span>SAVING...</span>`;
                 }
 
                 try {
-                    const auditRef = doc(db, 'artifacts', appId, 'users', this.user.uid, 'audits', this.auditId);
-                    await setDoc(auditRef, {
+                    // Create data object for Local Storage
+                    const dataToSave = {
                         date: document.getElementById('audit-date')?.value || "",
                         time: document.getElementById('audit-time')?.value || "",
                         dmName: document.getElementById('dm-name')?.value || "",
@@ -474,53 +440,47 @@
                         handoverName: document.getElementById('handover-name')?.value || "",
                         handoverTime: document.getElementById('handover-time')?.value || "",
                         handoverPhotos: this.handoverPhotos,
-                        updatedAt: new Date().toISOString()
-                    });
+                        updatedAt: new Date().toISOString(),
+                        responses: this.flatItems.map(item => ({
+                            gIdx: item.gIdx,
+                            status: item.status,
+                            remarks: item.remarks,
+                            photos: item.photos
+                        }))
+                    };
 
-                    const resCol = collection(db, 'artifacts', appId, 'users', this.user.uid, 'audits', this.auditId, 'responses');
-                    // We save each response in a batch logic or sequential to avoid missing data
-                    for (const item of this.flatItems) {
-                        if (item.status !== null || item.remarks || item.photos.length > 0) {
-                            await setDoc(doc(resCol, String(item.gIdx)), {
-                                status: item.status, 
-                                remarks: item.remarks, 
-                                photos: item.photos, 
-                                gIdx: item.gIdx
-                            });
-                        }
-                    }
+                    // Save directly to browser Local Storage
+                    localStorage.setItem(`night_audit_data_${this.auditId}`, JSON.stringify(dataToSave));
 
                     if (!isAuto) {
                         this.showToast('success');
-                        btnContent.innerHTML = `<i class="fa-solid fa-cloud-check text-emerald-600 text-lg"></i><span class="text-emerald-700">SAVED</span>`;
+                        btnContent.innerHTML = `<i class="fa-solid fa-check text-emerald-600 text-lg"></i><span class="text-emerald-700">SAVED</span>`;
                         setTimeout(() => {
-                            btnContent.innerHTML = `<i class="fa-solid fa-cloud-arrow-up text-lg"></i><span>SAVE</span>`;
+                            if(btnContent) btnContent.innerHTML = `<i class="fa-solid fa-floppy-disk text-lg"></i><span>SAVE</span>`;
                         }, 2000);
                     }
                 } catch (e) { 
-                    console.error("Save failed:", e);
+                    console.error("Local Storage Save failed:", e);
                     if (!isAuto) {
                         this.showToast('error');
-                        btnContent.innerHTML = `<i class="fa-solid fa-cloud-arrow-up text-lg"></i><span>SAVE</span>`;
+                        btnContent.innerHTML = `<i class="fa-solid fa-floppy-disk text-lg"></i><span>SAVE</span>`;
                     }
                 } finally {
                     this.isSaving = false;
-                    btn.classList.remove('loading-pulse', 'opacity-70');
-                    if (isAuto) {
-                         const toast = document.getElementById('status-toast');
-                         if (toast.style.display === 'block' && document.getElementById('toast-content').innerText.includes('Syncing')) {
-                             toast.style.display = 'none';
-                         }
+                    if(btn) {
+                        btn.classList.remove('loading-pulse');
+                        btn.disabled = false;
                     }
                 }
             },
 
-            async loadProgress() {
-                if (!this.user || !db) return;
+            loadProgress() {
                 try {
-                    const snap = await getDoc(doc(db, 'artifacts', appId, 'users', this.user.uid, 'audits', this.auditId));
-                    if (snap.exists()) {
-                        const d = snap.data();
+                    const savedDataString = localStorage.getItem(`night_audit_data_${this.auditId}`);
+                    if (savedDataString) {
+                        const d = JSON.parse(savedDataString);
+                        
+                        // Restore Meta fields
                         const fields = {
                             'audit-date': d.date, 'audit-time': d.time, 'dm-name': d.dmName,
                             'final-summary': d.summary, 'handover-name': d.handoverName, 'handover-time': d.handoverTime
@@ -531,21 +491,20 @@
                         });
                         this.handoverPhotos = d.handoverPhotos || [];
 
-                        const rSnap = await getDocs(collection(db, 'artifacts', appId, 'users', this.user.uid, 'audits', this.auditId, 'responses'));
-                        rSnap.forEach(doc => {
-                            const r = doc.data();
-                            const item = this.flatItems[r.gIdx];
-                            if (item) {
-                                item.status = r.status; 
-                                item.remarks = r.remarks || "";
-                                item.photos = r.photos || [];
-                            }
-                        });
-                        this.render(); 
-                        this.updateProgress();
+                        // Restore Responses
+                        if (d.responses && Array.isArray(d.responses)) {
+                            d.responses.forEach(r => {
+                                const item = this.flatItems.find(i => i.gIdx === r.gIdx);
+                                if (item) {
+                                    item.status = r.status; 
+                                    item.remarks = r.remarks || "";
+                                    item.photos = r.photos || [];
+                                }
+                            });
+                        }
                     }
                 } catch (e) { 
-                    console.error("Secure load failed:", e); 
+                    console.error("Local Storage load failed:", e); 
                 }
             },
 
@@ -591,8 +550,8 @@
                             img.onload = () => {
                                 const canvas = document.createElement('canvas');
                                 const ctx = canvas.getContext('2d');
-                                // Balanced sizing for cloud doc limits
-                                const targetW = 1024;
+                                // Balanced sizing for local storage limits (5-10MB usually)
+                                const targetW = 800; 
                                 const targetH = (img.height / img.width) * targetW;
                                 canvas.width = targetW; canvas.height = targetH;
                                 ctx.drawImage(img, 0, 0, targetW, targetH);
@@ -603,7 +562,7 @@
                                 ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowBlur = 10;
                                 ctx.fillText(ts, targetW - 40, targetH - 40);
 
-                                const data = canvas.toDataURL('image/jpeg', 0.6); // Slightly higher compression for faster cloud sync
+                                const data = canvas.toDataURL('image/jpeg', 0.5); // Higher compression for localStorage
                                 if (!data.startsWith('data:image/jpeg;base64,')) return;
                                 
                                 if (target === 'handover') {
@@ -656,12 +615,14 @@
             removePhoto(idx, photoIdx) {
                 if (typeof idx === 'number' && this.flatItems[idx]) {
                     this.flatItems[idx].photos.splice(photoIdx, 1);
+                    this.saveProgress(true); // Auto-save on delete
                     this.render();
                 }
             },
 
             removeHandoverPhoto(pIdx) {
                 this.handoverPhotos.splice(pIdx, 1);
+                this.saveProgress(true); // Auto-save on delete
                 this.renderHandoverPhotos();
             },
 
