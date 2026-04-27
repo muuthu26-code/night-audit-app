@@ -55,9 +55,10 @@
             
             .photo-grid {
                 display: grid;
-                grid-template-cols: repeat(2, 1fr);
+                grid-template-columns: repeat(2, 1fr);
                 gap: 10px;
                 margin-top: 10px;
+                page-break-inside: avoid;
             }
 
             .photo-preview img { 
@@ -218,6 +219,7 @@
                 <div id="handover-photos-preview" class="grid grid-cols-2 gap-3 mt-4"></div>
             </div>
 
+            <!-- Restored Print Only Container for Handover Photos -->
             <div class="hidden print-only mb-8" id="handover-photos-print"></div>
             
             <div class="grid grid-cols-2 gap-6">
@@ -553,7 +555,7 @@
                                 const canvas = document.createElement('canvas');
                                 const ctx = canvas.getContext('2d');
                                 
-                                // Fixed 600x450 (4:3) size for all images to guarantee uniform size and keep PDF under 10MB
+                                // EXACT 600x450 (4:3) size for uniform print display and guaranteed low file size
                                 const targetW = 600; 
                                 const targetH = 450;
                                 canvas.width = targetW; canvas.height = targetH;
@@ -574,12 +576,12 @@
                                 ctx.drawImage(img, sX, sY, sWidth, sHeight, 0, 0, targetW, targetH);
                                 
                                 const ts = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).toUpperCase();
-                                ctx.font = `bold 24px sans-serif`;
+                                ctx.font = `bold 20px sans-serif`;
                                 ctx.textAlign = "right"; ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
                                 ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowBlur = 6;
                                 ctx.fillText(ts, targetW - 20, targetH - 20);
 
-                                // 0.7 compression balances clarity with small file size (< 80KB per image)
+                                // 0.7 compression balances clarity with small file size to easily keep PDF < 10MB
                                 const data = canvas.toDataURL('image/jpeg', 0.7); 
                                 if (!data.startsWith('data:image/jpeg;base64,')) return;
                                 
@@ -605,7 +607,6 @@
                 let html = '';
                 let gIdx = 0;
                 auditData.forEach((category) => {
-                    // Update sticky header positioning for perfect alignment below main nav
                     html += `<div class="mb-12 print-page-break">
                                 <h2 class="sticky top-[calc(60px+var(--sat))] z-30 bg-[#f8fafc]/95 backdrop-blur-md py-4 mb-4 font-black text-xs text-teal-800 uppercase tracking-[0.2em] border-b-2 border-teal-600/30 no-print shadow-sm px-2">
                                     ${this.escapeHTML(category.category)}
@@ -617,7 +618,23 @@
                     category.items.forEach((item) => {
                         const state = this.flatItems[gIdx];
                         
+                        // RESTORED PRINT LAYOUT
                         html += `
+                            <div class="hidden print-only mb-8 pb-8 border-b border-slate-200">
+                                <div class="flex justify-between items-start mb-3">
+                                    <div class="flex-1 pr-8">
+                                        <span class="font-black mr-3 text-slate-300 text-lg">${gIdx + 1}.</span>
+                                        <span class="font-bold text-slate-900 text-[14px]">${this.escapeHTML(item.text)}</span>
+                                    </div>
+                                    <div class="w-36 text-right font-black text-[12px] uppercase tracking-tighter text-teal-900">
+                                        Result: ${state.status ? state.status.replace('-', ' ') : 'NOT AUDITED'}
+                                    </div>
+                                </div>
+                                ${state.remarks ? `<div class="text-[11px] text-slate-600 italic ml-10 mb-4 p-4 bg-slate-50 border-l-4 border-slate-300 rounded-r-lg">Findings: ${this.escapeHTML(state.remarks)}</div>` : ''}
+                                ${state.photos.length > 0 ? `<div class="photo-grid ml-10">${state.photos.map(p => `<div class="photo-preview"><img src="${p}"></div>`).join('')}</div>` : ''}
+                            </div>
+                            
+                            <!-- INTERACTIVE NO-PRINT LAYOUT -->
                             <div class="bg-white p-6 rounded-[2rem] border border-slate-200 mb-6 shadow-sm no-print" data-idx="${gIdx}">
                                 <div class="flex justify-between items-start mb-6">
                                     <span class="text-[10px] font-black text-slate-200 w-6 mt-1 flex-none">${gIdx + 1}.</span>
@@ -630,7 +647,6 @@
                                         <button onclick="app.updateItemStatus(${gIdx}, 'na')" data-status="na" class="status-btn flex-1 py-4 border-2 border-slate-50 rounded-2xl text-[11px] font-black tracking-[0.1em] transition-all ${state.status === 'na' ? 'selected-na' : 'bg-slate-50 text-slate-400'}">N/A</button>
                                     </div>
                                     
-                                    <!-- Replaced Grid with Flex for perfectly square camera buttons -->
                                     <div class="flex gap-3 items-start w-full">
                                         <textarea id="remarks-${gIdx}" oninput="app.updateRemarks(${gIdx}, this.value)" placeholder="Observations..." class="flex-1 w-full text-sm font-semibold bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 focus:outline-none focus:border-teal-500 focus:bg-white text-slate-600 resize-none min-h-[56px]" rows="1">${this.escapeHTML(state.remarks)}</textarea>
                                         
@@ -659,8 +675,12 @@
 
             renderHandoverPhotos() {
                 const preview = document.getElementById('handover-photos-preview');
+                const print = document.getElementById('handover-photos-print'); // RESTORED PRINT BINDING
+                
                 const html = this.handoverPhotos.map((p, pIdx) => `<div class="photo-preview border-2 border-slate-100 rounded-3xl overflow-hidden relative group"><img src="${p}"><button onclick="app.removeHandoverPhoto(${pIdx})" class="absolute top-2 right-2 bg-rose-500 text-white w-8 h-8 rounded-xl flex items-center justify-center shadow-lg no-print"><i class="fa-solid fa-trash-can text-sm"></i></button></div>`).join('');
+                
                 if (preview) preview.innerHTML = html;
+                if (print) print.innerHTML = `<div class="photo-grid">${html}</div>`; // RESTORED PRINT INJECTION
             },
 
             escapeHTML(str) {
