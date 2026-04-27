@@ -5,43 +5,67 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#0f766e">
     
+    <!-- iOS Specific Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Night Audit">
+    <link rel="apple-touch-icon" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/svgs/solid/moon.svg">
+
     <title>Duty Manager Night Rounds Audit</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
+        :root {
+            --sat: env(safe-area-inset-top);
+            --sar: env(safe-area-inset-right);
+            --sab: env(safe-area-inset-bottom);
+            --sal: env(safe-area-inset-left);
+        }
+
         body {
             -webkit-tap-highlight-color: transparent;
-            padding-top: env(safe-area-inset-top);
-            padding-bottom: env(safe-area-inset-bottom);
+            padding-top: var(--sat);
+            padding-bottom: var(--sab);
             background-color: #f8fafc;
+            overflow-x: hidden;
+            width: 100%;
+            position: relative;
         }
         
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+        header {
+            padding-top: calc(1rem + var(--sat));
+            margin-top: calc(0px - var(--sat));
+        }
+
+        input, textarea {
+            font-size: 16px !important;
+        }
+
         @media print {
-            body { background-color: white !important; color: black !important; font-size: 11px !important; line-height: 1.4 !important; }
+            body { background-color: white !important; color: black !important; font-size: 11px !important; line-height: 1.4 !important; padding: 0 !important; }
             .no-print { display: none !important; }
             .print-only { display: block !important; }
             .print-border { border: 1px solid #cbd5e1 !important; }
-            .print-page-break { page-break-inside: avoid; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px;}
+            .print-page-break { page-break-inside: avoid; }
             input, textarea { border: none !important; border-bottom: 1px solid #e2e8f0 !important; border-radius: 0 !important; background: transparent !important; }
             
-            /* High-Clarity Photo Stack for PDF */
             .photo-grid {
-                display: flex;
-                flex-direction: column;
-                gap: 15px;
-                margin-top: 15px;
+                display: grid;
+                grid-template-cols: repeat(2, 1fr);
+                gap: 10px;
+                margin-top: 10px;
             }
 
             .photo-preview img { 
-                width: 100% !important; /* Forces large view for PDF clarity */
-                max-height: none !important;
+                max-height: 300px !important;
+                width: 100% !important;
                 object-fit: contain !important;
-                border: 2px solid #000;
-                border-radius: 4px;
+                border: 1.5px solid #e2e8f0;
+                border-radius: 8px;
             }
             main { padding: 0 !important; }
             .meta-section { margin-bottom: 30px; }
@@ -59,38 +83,56 @@
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
         }
 
-        .saving-indicator {
+        .status-toast {
             display: none;
             position: fixed;
-            top: 1rem;
-            right: 1rem;
+            top: calc(1rem + var(--sat));
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 100;
+            animation: slideDown 0.3s ease-out;
         }
+
+        @keyframes slideDown {
+            from { top: -50px; opacity: 0; }
+            to { top: calc(1rem + var(--sat)); opacity: 1; }
+        }
+
+        .floating-action-area {
+            padding-bottom: calc(1.25rem + var(--sab));
+        }
+
+        textarea { transition: all 0.2s ease; }
     </style>
 </head>
 <body class="text-slate-800 antialiased font-sans">
 
-    <div id="saving-indicator" class="saving-indicator no-print">
-        <div class="bg-white/90 backdrop-blur shadow-lg border border-teal-100 px-4 py-2 rounded-full flex items-center gap-2">
-            <i class="fa-solid fa-circle-notch fa-spin text-teal-600"></i>
-            <span class="text-[10px] font-black uppercase text-teal-800">Securing Data...</span>
+    <!-- Save Confirmation Toast -->
+    <div id="status-toast" class="status-toast no-print">
+        <div id="toast-content" class="bg-white shadow-2xl border border-slate-100 px-6 py-3 rounded-full flex items-center gap-3">
+            <!-- Content dynamic via JS -->
         </div>
     </div>
 
+    <!-- Header -->
     <header class="bg-teal-700 text-white p-4 sticky top-0 z-50 shadow-md no-print">
         <div class="max-w-3xl mx-auto flex justify-between items-center">
-            <h1 class="font-bold text-lg leading-tight tracking-tight">Duty Manager Audit</h1>
-            <div id="progress-text" class="text-xs font-black bg-teal-800 px-3 py-1 rounded-full">0/0</div>
+            <div>
+                <h1 class="font-bold text-lg leading-tight tracking-tight">Duty Manager Audit</h1>
+            </div>
         </div>
     </header>
 
+    <!-- Print Header -->
     <div class="hidden print-only mb-8 text-center border-b-4 border-teal-800 pb-6">
         <h1 class="font-black text-3xl uppercase text-teal-900 mb-1">Night Rounds Audit Report</h1>
         <p class="text-sm text-slate-500 font-bold uppercase tracking-[0.3em]">Duty Manager Operations Checklist</p>
     </div>
 
-    <main class="max-w-3xl mx-auto p-4 pb-28">
+    <!-- Main Content -->
+    <main class="max-w-3xl mx-auto p-4 pb-32">
         
+        <!-- Meta Form -->
         <div class="bg-white p-6 rounded-3xl border border-slate-200 mb-8 shadow-sm print-border meta-section">
             <div class="grid grid-cols-2 gap-6">
                 <div>
@@ -108,8 +150,10 @@
             </div>
         </div>
 
+        <!-- Checklist Container -->
         <div id="checklist-container"></div>
 
+        <!-- Final Handover -->
         <div class="bg-white p-8 rounded-3xl border border-slate-200 mt-8 shadow-sm print-border print-page-break">
             <h3 class="font-black text-base text-teal-900 mb-6 border-b-2 border-slate-100 pb-4 uppercase tracking-wider">Final Shift Handover</h3>
             
@@ -118,8 +162,9 @@
                 <textarea id="final-summary" rows="5" placeholder="Document any critical incidents, maintenance escalations, or follow-ups..." class="w-full text-sm font-medium bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-700 resize-none leading-relaxed"></textarea>
             </div>
 
+            <!-- Handover Photo Evidence -->
             <div class="mb-8 no-print">
-                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Handover Evidence (Attach Multiple)</label>
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Handover Evidence (Multiple Photos)</label>
                 <button onclick="app.triggerPhotoUpload('handover')" class="w-full h-14 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 font-bold hover:bg-teal-50 hover:text-teal-600 hover:border-teal-200 transition-all flex items-center justify-center gap-3">
                     <i class="fa-solid fa-camera-retro text-xl"></i>
                     <span>Attach Handover Photo</span>
@@ -139,18 +184,29 @@
                     <input type="time" id="handover-time" class="w-full text-sm font-bold bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-700">
                 </div>
             </div>
+
+            <div class="hidden print-only mt-20 grid grid-cols-2 gap-16">
+                <div class="border-t-2 border-slate-900 pt-4 text-center text-xs font-black uppercase tracking-widest">Duty Manager Signature</div>
+                <div class="border-t-2 border-slate-900 pt-4 text-center text-xs font-black uppercase tracking-widest">AM Shift Manager Signature</div>
+            </div>
         </div>
+
     </main>
 
-    <div class="fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-md border-t border-slate-200 p-5 shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.1)] z-40 no-print flex gap-4">
+    <!-- Floating Action Area -->
+    <div class="fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-md border-t border-slate-200 p-5 shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.1)] z-40 no-print flex gap-4 floating-action-area">
+        <button onclick="window.print()" class="flex-none px-4 h-14 flex items-center justify-center bg-slate-100 text-slate-600 rounded-2xl font-black text-xs border border-slate-200 hover:bg-slate-200 transition-all active:scale-95">
+            <i class="fa-solid fa-file-pdf text-lg"></i>
+        </button>
         <button id="save-btn" onclick="app.saveProgress()" class="flex-none px-4 h-14 flex items-center justify-center bg-slate-100 text-teal-600 rounded-2xl font-black text-xs border border-teal-200 hover:bg-teal-50 transition-all active:scale-95">
             <i class="fa-solid fa-cloud-arrow-up text-lg mr-2"></i> SAVE
         </button>
         <button id="submit-btn" onclick="app.completeAudit()" class="flex-1 h-14 bg-teal-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-teal-600/40 hover:bg-teal-700 transition-all active:scale-95 flex items-center justify-center gap-3">
-            <i class="fa-solid fa-file-pdf text-xl"></i> DOWNLOAD PDF
+            <i class="fa-solid fa-circle-check text-xl"></i> COMPLETE
         </button>
     </div>
 
+    <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -171,13 +227,64 @@
 
         const auditData = [
             { category: "MAIN PORCH", items: [{ text: "Manning Valet & LP Team." }, { text: "Overall Cleanliness." }, { text: "Exit Gate Locked." }] },
-            { category: "LOBBY & RECEPTION", items: [{ text: "Lobby seating area furniture arrangement." }, { text: "Floor/carpet cleaning condition." }, { text: "Reception desk/Back office cleanliness." }, { text: "Luggage Room: Secured and organized. No unattended luggage left in the lobby." }, { text: "Public Restroom cleanliness." }, { text: "Lobby Ambience: Lighting dimmed to night settings, temperature comfortable." }, { text: "Any abnormal smell/noise." }, { text: "Was lobby music switched off at 23.00 hrs." }, { text: "VIP Movements: Review late night or early morning VIP arrivals/departures; ensure arrangements are ready." }, { text: "Check all digital signage for correct signages." }, { text: "Is the hotel EV car fully charged." }, { text: "Is hotel EV car key handed over to DM." }, { text: "Conduct a floor check of the M-floor lobby for standards and for any potential security breaches." }] },
-            { category: "SECURITY & LIFE SAFETY", items: [{ text: "Key Control Audit: Audit the key log to ensure all department keys were properly signed in by the departing evening staff." }, { text: "Security Control Room: Staff alert & CCTV functioning." }, { text: "Fire Panel: No faults or disabled zones." }, { text: "Entrance & Exit: Ensure required doors are locked/secured according to night protocols." }, { text: "Along with the LP team, check the 1st floor for any security breach, including the service & guest staircase." }, { text: "Emergency Exits: Stairwells clear & lit." }, { text: "Perimeter Check: Walk the exterior perimeter. Check exterior lighting, parking security, and landscaping." }] },
-            { category: "PUBLIC AREAS & HOUSEKEEPING", items: [{ text: "Elevators: Clean (mirrors, floors, panels) and functioning smoothly." }, { text: "Ensure the Fitness Centre, Wet Area, and SPA remain under lock and key by verifying all access control points." }] },
+            { 
+                category: "LOBBY & RECEPTION", 
+                items: [
+                    { text: "Lobby seating area furniture arrangement." }, 
+                    { text: "Floor/carpet cleaning condition." }, 
+                    { text: "Reception desk/Back office cleanliness." }, 
+                    { text: "Luggage Room: Secured and organized. No unattended luggage left in the lobby." }, 
+                    { text: "Public Restroom cleanliness." }, 
+                    { text: "Lobby Ambience: Lighting dimmed to night settings, temperature comfortable." }, 
+                    { text: "Any abnormal smell/noise." }, 
+                    { text: "Was lobby music switched off at 23.00 hrs." },
+                    { text: "VIP Movements: Review late night or early morning VIP arrivals/departures; ensure arrangements are ready." },
+                    { text: "Check all digital signage for correct signages." }, 
+                    { text: "Is the hotel EV car fully charged." }, 
+                    { text: "Is hotel EV car key handed over to DM." }, 
+                    { text: "Conduct a floor check of the M-floor lobby for standards and for any potential security breaches." }
+                ] 
+            },
+            { 
+                category: "SECURITY & LIFE SAFETY", 
+                items: [
+                    { text: "Key Control Audit: Audit the key log to ensure all department keys were properly signed in by the departing evening staff." }, 
+                    { text: "Security Control Room: Staff alert & CCTV functioning." }, 
+                    { text: "Fire Panel: No faults or disabled zones." }, 
+                    { text: "Entrance & Exit: Ensure required doors are locked/secured according to night protocols." }, 
+                    { text: "Along with the LP team, check the 1st floor for any security breach, including the service & guest staircase." }, 
+                    { text: "Emergency Exits: Stairwells clear & lit." }, 
+                    { text: "Perimeter Check: Walk the exterior perimeter. Check exterior lighting, parking security, and landscaping." }
+                ] 
+            },
+            { 
+                category: "PUBLIC AREAS & HOUSEKEEPING", 
+                items: [
+                    { text: "Elevators: Clean (mirrors, floors, panels) and functioning smoothly." }, 
+                    { text: "Ensure the Fitness Centre, Wet Area, and SPA remain under lock and key by verifying all access control points." }
+                ] 
+            },
             { category: "POOL AREA", items: [{ text: "Pool lighting is on." }, { text: "Check for overall cleanliness." }, { text: "Pool area perimeter check." }] },
-            { category: "FOOD & BEVERAGE", items: [{ text: "Outlet Security: All outlets locked." }, { text: "Events Lawn: Smoking poles clean." }, { text: "Events Hall: Monitor setup & activities." }, { text: "IRD: Staff alert, kitchen clean." }, { text: "Spring: Cleanliness & staff attentiveness." }] },
+            { 
+                category: "FOOD & BEVERAGE", 
+                items: [
+                    { text: "Outlet Security: All outlets locked." }, 
+                    { text: "Events Lawn: Smoking poles clean." }, 
+                    { text: "Events Hall: Monitor setup & activities." }, 
+                    { text: "IRD: Staff alert, kitchen clean." }, 
+                    { text: "Spring: Cleanliness & staff attentiveness." }
+                ] 
+            },
             { category: "GUEST CORRIDORS & FLOORS", items: [{ text: "Lighting: All corridor lights functioning." }, { text: "Noise Levels: Address disturbances immediately." }, { text: "Room Service: Corridors clear of trays." }, { text: "Housekeeping: No carts left in corridors." }] },
-            { category: "BACK OF HOUSE (BOH) & HEART OF HOUSE", items: [{ text: "Samovar: Cleanliness & food quality." }, { text: "Locker rooms: Clean, well-lit, secure, and no unauthorised stay-overs." }, { text: "Receiving Area: Gates locked & clean." }, { text: "Garbage Area: Clean and secure to prevent pest issues." }] },
+            { 
+                category: "BACK OF HOUSE (BOH) & HEART OF HOUSE", 
+                items: [
+                    { text: "Samovar: Cleanliness & food quality." }, 
+                    { text: "Locker rooms: Clean, well-lit, secure, and no unauthorised stay-overs." }, 
+                    { text: "Receiving Area: Gates locked & clean." }, 
+                    { text: "Garbage Area: Clean and secure to prevent pest issues." }
+                ] 
+            },
             { category: "CAR PARKING & DRIVERS' RESTROOM", items: [{ text: "Car parking area cleanliness." }, { text: "Drivers' restroom cleanliness." }] }
         ];
 
@@ -203,7 +310,7 @@
                     cat.items.forEach((item, iIdx) => {
                         this.flatItems.push({ 
                             ...item, gIdx, cIdx, iIdx, 
-                            status: null, remarks: "", photos: [] // Array supports multiple photos
+                            status: null, remarks: "", photos: []
                         });
                         gIdx++;
                     });
@@ -224,128 +331,37 @@
                         this.user = u;
                         if (u) await this.loadProgress();
                     });
-                    setInterval(() => this.saveProgress(true), 60000);
+                    setInterval(() => this.saveProgress(true), 60000 * 5); // Autosave every 5 mins
                 }
 
                 this.render();
                 this.updateProgress();
             },
 
-            escapeHTML(str) {
-                if (!str) return "";
-                const div = document.createElement('div');
-                div.textContent = str;
-                return div.innerHTML;
-            },
-
-            render() {
-                const container = document.getElementById('checklist-container');
-                if (!container) return;
+            showToast(type, message) {
+                const toast = document.getElementById('status-toast');
+                const content = document.getElementById('toast-content');
                 
-                let html = '';
-                let gIdx = 0;
+                if (type === 'saving') {
+                    content.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-teal-600"></i><span class="text-[11px] font-black uppercase text-teal-800 tracking-wider">Securing Data...</span>`;
+                } else if (type === 'success') {
+                    content.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500"></i><span class="text-[11px] font-black uppercase text-emerald-800 tracking-wider">Progress Saved Successfully</span>`;
+                } else if (type === 'error') {
+                    content.innerHTML = `<i class="fa-solid fa-circle-exclamation text-rose-500"></i><span class="text-[11px] font-black uppercase text-rose-800 tracking-wider">Save Failed - Offline?</span>`;
+                }
 
-                auditData.forEach((category) => {
-                    html += `
-                        <div class="mb-12">
-                            <h2 class="sticky top-[78px] z-30 bg-[#f8fafc]/90 backdrop-blur-md py-4 mb-4 font-black text-xs text-teal-800 uppercase tracking-[0.2em] border-b-2 border-teal-600/30 no-print">
-                                ${this.escapeHTML(category.category)}
-                            </h2>
-                            <h2 class="hidden print-only font-black text-xl text-teal-800 border-b-4 border-teal-800 mb-6 pb-2 mt-10">
-                                ${this.escapeHTML(category.category)}
-                            </h2>
-                    `;
-
-                    category.items.forEach((item) => {
-                        const state = this.flatItems[gIdx];
-                        const escapedText = this.escapeHTML(item.text);
-                        const escapedRemarks = this.escapeHTML(state.remarks);
-
-                        html += `
-                            <div class="hidden print-only mb-8 pb-8 print-page-break">
-                                <div class="flex justify-between items-start mb-3">
-                                    <div class="flex-1 pr-8">
-                                        <span class="font-black mr-3 text-slate-300 text-lg">${gIdx + 1}.</span>
-                                        <span class="font-bold text-slate-900 text-[14px]">${escapedText}</span>
-                                    </div>
-                                    <div class="w-36 text-right font-black text-[12px] uppercase tracking-tighter text-teal-900">
-                                        Result: ${state.status ? state.status.replace('-', ' ') : 'NOT AUDITED'}
-                                    </div>
-                                </div>
-                                ${state.remarks ? `<div class="text-[11px] text-slate-600 italic ml-10 mb-4 p-4 bg-slate-50 border-l-4 border-slate-300 rounded-r-lg">Findings: ${escapedRemarks}</div>` : ''}
-                                ${state.photos.length > 0 ? `<div class="photo-grid ml-10">${state.photos.map(p => `<div class="photo-preview"><img src="${p}"></div>`).join('')}</div>` : ''}
-                            </div>
-
-                            <div class="bg-white p-6 rounded-[2rem] border border-slate-200 mb-6 shadow-sm no-print" data-idx="${gIdx}">
-                                <div class="flex justify-between items-start mb-6">
-                                    <span class="text-[10px] font-black text-slate-200 w-6 mt-1">${gIdx + 1}.</span>
-                                    <p class="text-[15px] font-bold text-slate-800 flex-1 ml-2 leading-tight">${escapedText}</p>
-                                </div>
-                                
-                                <div class="space-y-6">
-                                    <div class="flex gap-2.5 w-full">
-                                        <button onclick="app.updateItemStatus(${gIdx}, 'compliant')" data-status="compliant" class="status-btn flex-1 py-4 border-2 border-slate-50 rounded-2xl text-[11px] font-black tracking-[0.1em] transition-all ${state.status === 'compliant' ? 'selected-compliant' : 'bg-slate-50 text-slate-400'}">YES</button>
-                                        <button onclick="app.updateItemStatus(${gIdx}, 'non-compliant')" data-status="non-compliant" class="status-btn flex-1 py-4 border-2 border-slate-50 rounded-2xl text-[11px] font-black tracking-[0.1em] transition-all ${state.status === 'non-compliant' ? 'selected-non-compliant' : 'bg-slate-50 text-slate-400'}">NO</button>
-                                        <button onclick="app.updateItemStatus(${gIdx}, 'na')" data-status="na" class="status-btn flex-1 py-4 border-2 border-slate-50 rounded-2xl text-[11px] font-black tracking-[0.1em] transition-all ${state.status === 'na' ? 'selected-na' : 'bg-slate-50 text-slate-400'}">N/A</button>
-                                    </div>
-
-                                    <div class="grid grid-cols-12 gap-3 items-start">
-                                        <div class="col-span-9">
-                                            <textarea 
-                                                id="remarks-${gIdx}"
-                                                oninput="app.updateRemarks(${gIdx}, this.value)"
-                                                placeholder="Observations..." 
-                                                class="w-full text-sm font-semibold bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 focus:outline-none focus:border-teal-500 focus:bg-white text-slate-600 resize-none min-h-[56px]"
-                                                rows="1"
-                                            >${escapedRemarks}</textarea>
-                                        </div>
-                                        <div class="col-span-3">
-                                            <button onclick="app.triggerPhotoUpload(${gIdx})" class="evidence-btn w-full h-[56px] flex items-center justify-center bg-slate-50 text-slate-400 rounded-2xl border-2 border-slate-50 transition-all hover:bg-teal-50 hover:text-teal-600 hover:border-teal-200">
-                                                <i class="fa-solid fa-camera text-2xl"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                    
-                                    <div id="preview-container-${gIdx}" class="grid grid-cols-2 gap-3 mt-4 ${state.photos.length > 0 ? '' : 'hidden'}">
-                                        ${state.photos.map((p, pIdx) => `
-                                            <div class="photo-preview border-2 border-slate-100 rounded-3xl overflow-hidden relative group">
-                                                <img src="${p}">
-                                                <button onclick="app.removePhoto(${gIdx}, ${pIdx})" class="absolute top-2 right-2 bg-rose-500 text-white w-8 h-8 rounded-xl flex items-center justify-center shadow-lg"><i class="fa-solid fa-trash-can text-sm"></i></button>
-                                            </div>
-                                        `).join('')}
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                        gIdx++;
-                    });
-                    html += `</div>`;
-                });
-
-                container.innerHTML = html;
-                this.renderHandoverPhotos();
-            },
-
-            renderHandoverPhotos() {
-                const preview = document.getElementById('handover-photos-preview');
-                const print = document.getElementById('handover-photos-print');
-                
-                const html = this.handoverPhotos.map((p, pIdx) => `
-                    <div class="photo-preview border-2 border-slate-100 rounded-3xl overflow-hidden relative group">
-                        <img src="${p}">
-                        <button onclick="app.removeHandoverPhoto(${pIdx})" class="absolute top-2 right-2 bg-rose-500 text-white w-8 h-8 rounded-xl flex items-center justify-center shadow-lg no-print"><i class="fa-solid fa-trash-can text-sm"></i></button>
-                    </div>
-                `).join('');
-                
-                if (preview) preview.innerHTML = html;
-                if (print) print.innerHTML = `<div class="photo-grid">${html}</div>`;
+                toast.style.display = 'block';
+                if (type !== 'saving') {
+                    setTimeout(() => { toast.style.display = 'none'; }, 3000);
+                }
             },
 
             async saveProgress(isAuto = false) {
                 if (!this.user || !db || this.isSaving) return;
                 this.isSaving = true;
-                const ind = document.getElementById('saving-indicator');
-                if (ind) ind.style.display = 'block';
+                
+                // Don't show toast for background auto-saves to avoid distracting auditor
+                if (!isAuto) this.showToast('saving');
 
                 try {
                     const auditRef = doc(db, 'artifacts', appId, 'users', this.user.uid, 'audits', this.auditId);
@@ -361,6 +377,7 @@
                     });
 
                     const resCol = collection(db, 'artifacts', appId, 'users', this.user.uid, 'audits', this.auditId, 'responses');
+                    // Save individual responses
                     for (const item of this.flatItems) {
                         await setDoc(doc(resCol, String(item.gIdx)), {
                             status: item.status, 
@@ -369,11 +386,19 @@
                             gIdx: item.gIdx
                         });
                     }
+
+                    if (!isAuto) this.showToast('success');
                 } catch (e) { 
-                    console.error("Secure save failed:", e); 
+                    console.error("Save failed:", e);
+                    if (!isAuto) this.showToast('error');
                 } finally {
                     this.isSaving = false;
-                    if (ind) setTimeout(() => ind.style.display = 'none', 1000);
+                    if (isAuto) {
+                         const toast = document.getElementById('status-toast');
+                         if (toast.style.display === 'block' && document.getElementById('toast-content').innerText.includes('Securing')) {
+                             toast.style.display = 'none';
+                         }
+                    }
                 }
             },
 
@@ -436,10 +461,9 @@
 
             updateProgress() {
                 const comp = this.flatItems.filter(i => i.status !== null).length;
-                const progressText = document.getElementById('progress-text');
-                
-                if (progressText) {
-                    progressText.innerText = `${comp}/${this.totalItems}`;
+                const btn = document.getElementById('submit-btn');
+                if (comp === this.totalItems && btn) {
+                    btn.classList.replace('bg-teal-600', 'bg-emerald-500');
                 }
             },
 
@@ -460,9 +484,7 @@
                             img.onload = () => {
                                 const canvas = document.createElement('canvas');
                                 const ctx = canvas.getContext('2d');
-                                
-                                // Enhanced 2000px width for high clarity in PDF
-                                const targetW = 2000;
+                                const targetW = 1440;
                                 const targetH = (img.height / img.width) * targetW;
                                 canvas.width = targetW; canvas.height = targetH;
                                 ctx.drawImage(img, 0, 0, targetW, targetH);
@@ -473,11 +495,9 @@
                                 ctx.shadowColor = "black"; ctx.shadowBlur = 15;
                                 ctx.fillText(ts, targetW - 50, targetH - 50);
 
-                                // Adjusted quality compression to 0.85 for keeping multi-photo PDF within 10MB
-                                const data = canvas.toDataURL('image/jpeg', 0.85);
+                                const data = canvas.toDataURL('image/jpeg', 0.7);
                                 if (!data.startsWith('data:image/jpeg;base64,')) return;
                                 
-                                // Pushes to the array, enabling limitless multiple uploads
                                 if (target === 'handover') {
                                     this.handoverPhotos.push(data);
                                     this.renderHandoverPhotos();
@@ -494,6 +514,37 @@
                 input.click();
             },
 
+            render() {
+                const container = document.getElementById('checklist-container');
+                if (!container) return;
+                let html = '';
+                let gIdx = 0;
+                auditData.forEach((category) => {
+                    html += `<div class="mb-12 print-page-break"><h2 class="sticky top-[78px] z-30 bg-[#f8fafc]/90 backdrop-blur-md py-4 mb-4 font-black text-xs text-teal-800 uppercase tracking-[0.2em] border-b-2 border-teal-600/30 no-print">${this.escapeHTML(category.category)}</h2><h2 class="hidden print-only font-black text-xl text-teal-800 border-b-4 border-teal-800 mb-6 pb-2 mt-10">${this.escapeHTML(category.category)}</h2>`;
+                    category.items.forEach((item) => {
+                        const state = this.flatItems[gIdx];
+                        html += `<div class="bg-white p-6 rounded-[2rem] border border-slate-200 mb-6 shadow-sm no-print" data-idx="${gIdx}"><div class="flex justify-between items-start mb-6"><span class="text-[10px] font-black text-slate-200 w-6 mt-1">${gIdx + 1}.</span><p class="text-[15px] font-bold text-slate-800 flex-1 ml-2 leading-tight">${this.escapeHTML(item.text)}</p></div><div class="space-y-6"><div class="flex gap-2.5 w-full"><button onclick="app.updateItemStatus(${gIdx}, 'compliant')" data-status="compliant" class="status-btn flex-1 py-4 border-2 border-slate-50 rounded-2xl text-[11px] font-black tracking-[0.1em] transition-all ${state.status === 'compliant' ? 'selected-compliant' : 'bg-slate-50 text-slate-400'}">YES</button><button onclick="app.updateItemStatus(${gIdx}, 'non-compliant')" data-status="non-compliant" class="status-btn flex-1 py-4 border-2 border-slate-50 rounded-2xl text-[11px] font-black tracking-[0.1em] transition-all ${state.status === 'non-compliant' ? 'selected-non-compliant' : 'bg-slate-50 text-slate-400'}">NO</button><button onclick="app.updateItemStatus(${gIdx}, 'na')" data-status="na" class="status-btn flex-1 py-4 border-2 border-slate-50 rounded-2xl text-[11px] font-black tracking-[0.1em] transition-all ${state.status === 'na' ? 'selected-na' : 'bg-slate-50 text-slate-400'}">N/A</button></div><div class="grid grid-cols-12 gap-3 items-start"><div class="col-span-9"><textarea id="remarks-${gIdx}" oninput="app.updateRemarks(${gIdx}, this.value)" placeholder="Observations..." class="w-full text-sm font-semibold bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 focus:outline-none focus:border-teal-500 focus:bg-white text-slate-600 resize-none min-h-[56px]" rows="1">${this.escapeHTML(state.remarks)}</textarea></div><div class="col-span-3"><button onclick="app.triggerPhotoUpload(${gIdx})" class="evidence-btn w-full h-[56px] flex items-center justify-center bg-slate-50 text-slate-400 rounded-2xl border-2 border-slate-50 transition-all ${state.photos.length > 0 ? 'bg-teal-50 text-teal-600 border-teal-200' : ''}"><i class="fa-solid fa-camera text-2xl"></i></button></div></div><div id="preview-container-${gIdx}" class="grid grid-cols-2 gap-3 mt-4 ${state.photos.length > 0 ? '' : 'hidden'}">${state.photos.map((p, pIdx) => `<div class="photo-preview border-2 border-slate-100 rounded-3xl overflow-hidden relative group"><img src="${p}"><button onclick="app.removePhoto(${gIdx}, ${pIdx})" class="absolute top-2 right-2 bg-rose-500 text-white w-8 h-8 rounded-xl flex items-center justify-center shadow-lg"><i class="fa-solid fa-trash-can text-sm"></i></button></div>`).join('')}</div></div></div>`;
+                        gIdx++;
+                    });
+                    html += `</div>`;
+                });
+                container.innerHTML = html;
+                this.renderHandoverPhotos();
+            },
+
+            renderHandoverPhotos() {
+                const preview = document.getElementById('handover-photos-preview');
+                const html = this.handoverPhotos.map((p, pIdx) => `<div class="photo-preview border-2 border-slate-100 rounded-3xl overflow-hidden relative group"><img src="${p}"><button onclick="app.removeHandoverPhoto(${pIdx})" class="absolute top-2 right-2 bg-rose-500 text-white w-8 h-8 rounded-xl flex items-center justify-center shadow-lg no-print"><i class="fa-solid fa-trash-can text-sm"></i></button></div>`).join('');
+                if (preview) preview.innerHTML = html;
+            },
+
+            escapeHTML(str) {
+                if (!str) return "";
+                const div = document.createElement('div');
+                div.textContent = str;
+                return div.innerHTML;
+            },
+
             removePhoto(idx, photoIdx) {
                 if (typeof idx === 'number' && this.flatItems[idx]) {
                     this.flatItems[idx].photos.splice(photoIdx, 1);
@@ -507,7 +558,7 @@
             },
 
             completeAudit() { 
-                if (db) this.saveProgress(); 
+                this.saveProgress(); 
                 window.print(); 
             }
         };
